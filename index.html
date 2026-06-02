@@ -1727,11 +1727,16 @@ form.addEventListener('submit', async (e) => {
 
   try {
     const res = await fetch(WEBHOOK, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload)
-    });
+  method: 'POST',
+  mode: 'no-cors',
+  headers: { 'Content-Type': 'text/plain' },
+  body: JSON.stringify(payload)
+});
 
+saveRecentAudit(payload);
+clearDraft();
+showFeedback('success', 'Ο έλεγχος ξεκίνησε.');
+return;
     if (res.ok) {
       saveRecentAudit(payload);
       clearDraft();
