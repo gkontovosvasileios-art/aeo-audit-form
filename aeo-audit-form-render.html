@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="AEO Visibility Audit — έλεγχος παρουσίας επιχείρησης σε LLMs (ChatGPT, Claude). Premium audit tool by Vasilis Godovos.">
+<meta name="theme-color" content="#3d7fff">
+<meta name="color-scheme" content="dark">
+<title>AEO Visibility Audit · by Vasilis Godovos</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M14 2.2 L23.5 7.6 L23.5 20.4 L14 25.8 L4.5 20.4 L4.5 7.6 Z' fill='%230b0e14' stroke='%233d7fff' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M8.6 20 L14 8 L19.4 20 M10.8 15.7 L17.2 15.7' stroke='%236aa1ff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='21.4' cy='6.5' r='1.55' fill='%23a8c4ff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #07090f;
+    --bg-2:       #0b0e14;
+    --surface:    #111520;
+    --surface-2:  #161b29;
+    --border:     #1f2535;
+    --border-hi:  #2e3a52;
+    --text:       #c8d0e0;
+    --text-dim:   #5a6480;
+    --text-hi:    #edf0f7;
+    --accent:     #3d7fff;
+    --accent-2:   #6aa1ff;
+    --accent-lo:  #1a3566;
+    --accent-glow:rgba(61, 127, 255, 0.35);
+    --success:    #1fba74;
+    --success-lo: rgba(31, 186, 116, 0.12);
+    --warn:       #f5a623;
+    --error:      #e05a5a;
+    --error-lo:   rgba(224, 90, 90, 0.12);
+    --mono:       'DM Mono', ui-monospace, monospace;
+    --sans:       'DM Sans', system-ui, sans-serif;
+    --r:          10px;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─────────── BACKGROUND ─────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(31, 37, 53, 0.6) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(31, 37, 53, 0.6) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 90% 60% at 50% 40%, #000 40%, transparent 90%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 40%, #000 40%, transparent 90%);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* moving scan line */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(61, 127, 255, 0.04) 48%,
+      rgba(61, 127, 255, 0.08) 50%,
+      rgba(61, 127, 255, 0.04) 52%,
+      transparent 100%
+    );
+    background-size: 100% 220%;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    z-index: 0;
+    animation: scanY 14s linear infinite;
+    opacity: 0.7;
+  }
+
+  @keyframes scanY {
+    0%   { background-position: 0% -100%; }
+    100% { background-position: 0% 200%; }
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  /* ─────────── CARD ─────────── */
+  .card {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.02) inset,
+      0 30px 80px -20px rgba(0,0,0,0.6),
+      0 0 60px -20px var(--accent-glow);
+    animation: card-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes card-in {
+    0%   { opacity: 0; transform: translateY(14px) scale(0.985); }
+    100% { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* keyboard-only focus rings */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  input:focus-visible, select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(61, 127, 255, 0.35) !important;
+  }
+  button:focus-visible {
+    outline-offset: 3px;
+  }
+
+  /* glowing ring around the card */
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 14px;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(61,127,255,0.35),
+      transparent 35%,
+      transparent 65%,
+      rgba(106, 161, 255, 0.25)
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* live progress bar */
+  .progress-track {
+    position: relative;
+    height: 3px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .progress-bar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+    box-shadow: 0 0 12px var(--accent-glow);
+    transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    animation: progress-shimmer 1.8s linear infinite;
+  }
+  @keyframes progress-shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* ─────────── HEADER ─────────── */
+  .card-header {
+    padding: 1.4rem 1.8rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .header-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    min-width: 0;
+  }
+  .logo-mark {
+    position: relative;
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    background:
+      radial-gradient(120% 100% at 30% 20%, rgba(106,161,255,0.25), transparent 60%),
+      linear-gradient(160deg, var(--accent-lo) 0%, rgba(61,127,255,0.04) 100%);
+    border: 1px solid rgba(61,127,255,0.55);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      0 0 22px -6px var(--accent-glow),
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      inset 0 0 14px rgba(61,127,255,0.18);
+    animation: logo-pulse 4s ease-in-out infinite;
+    overflow: hidden;
+  }
+  /* orbiting scan arc */
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    inset: -30%;
+    background: conic-gradient(from 0deg, transparent 0deg, rgba(106,161,255,0.4) 25deg, transparent 60deg);
+    animation: logo-spin 6s linear infinite;
+    opacity: 0.5;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+  @keyframes logo-spin { to { transform: rotate(360deg); } }
+  @keyframes logo-pulse {
+    0%, 100% { box-shadow: 0 0 22px -6px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 14px rgba(61,127,255,0.18); }
+    50%      { box-shadow: 0 0 32px -4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 22px rgba(61,127,255,0.28); }
+  }
+  .logo-mark svg {
+    position: relative;
+    z-index: 1;
+    width: 26px;
+    height: 26px;
+    filter: drop-shadow(0 0 6px rgba(61,127,255,0.5));
+  }
+
+  .header-text h1 {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--mono);
+    font-size: 1.02rem;
+    font-weight: 500;
+    color: var(--text-hi);
+    letter-spacing: 0.01em;
+  }
+  .header-text p {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-top: 3px;
+    font-family: var(--mono);
+  }
+
+  /* brand monogram next to the title */
+  .brand-tag {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--accent-2);
+    background: linear-gradient(180deg, rgba(61,127,255,0.18), rgba(61,127,255,0.04));
+    border: 1px solid rgba(61,127,255,0.35);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.05),
+      0 0 12px -4px var(--accent-glow);
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+  }
+  .brand-tag::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 6px;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .progress-pct {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .progress-pct.high {
+    color: var(--success);
+    border-color: rgba(31,186,116,0.45);
+    background: rgba(31,186,116,0.06);
+    box-shadow: 0 0 14px -6px rgba(31,186,116,0.6);
+  }
+  .progress-pct.high b { color: var(--success); }
+  .progress-pct b { color: var(--text-hi); font-weight: 500; }
+
+  /* tiny "draft restored" toast */
+  .draft-toast {
+    position: fixed;
+    bottom: 1.2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--border-hi);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 999px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 14px 30px -10px rgba(0,0,0,0.5), 0 0 0 1px var(--border) inset;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  .draft-toast::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .draft-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ─────────── STATUS BAR ─────────── */
+  .status-bar {
+    padding: 0.55rem 1.8rem;
+    background: rgba(0,0,0,0.25);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+  }
+  .status-bar .left { display: flex; align-items: center; gap: 0.5rem; }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.85); }
+  }
+
+  .quick-actions {
+    display: flex;
+    gap: 0.35rem;
+  }
+  .qa-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    letter-spacing: 0.03em;
+  }
+  .qa-btn:hover {
+    color: var(--text-hi);
+    border-color: var(--accent);
+    background: rgba(61,127,255,0.08);
+  }
+  .qa-btn.danger:hover {
+    color: var(--error);
+    border-color: var(--error);
+    background: var(--error-lo);
+  }
+
+  /* ─────────── BODY / FIELDS ─────────── */
+  .card-body { padding: 1.6rem 1.8rem 1.8rem; }
+
+  .field { margin-bottom: 1.15rem; position: relative; }
+
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.45rem;
+  }
+  label .req { color: var(--accent); margin-left: 2px; }
+  label .opt {
+    color: var(--text-dim);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.68rem;
+    opacity: 0.7;
+  }
+
+  .input-wrap { position: relative; }
+
+  input[type="text"],
+  input[type="url"],
+  select {
+    width: 100%;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.72rem 2.4rem 0.72rem 0.95rem;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    color: var(--text-hi);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  input::placeholder { color: var(--text-dim); font-style: italic; }
+  input:hover, select:hover { border-color: var(--border-hi); }
+  input:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(61, 127, 255, 0.14);
+    background: var(--bg);
+  }
+
+  /* status icon inside the input */
+  .input-status {
+    position: absolute;
+    top: 50%;
+    right: 0.85rem;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  .input-status svg { width: 100%; height: 100%; }
+  .field.is-valid .input-status.ok { opacity: 1; }
+  .field.is-invalid .input-status.err { opacity: 1; animation: shake 0.4s; }
+
+  .field.is-valid input,
+  .field.is-valid select {
+    border-color: rgba(31,186,116,0.55);
+    box-shadow: 0 0 0 3px rgba(31,186,116,0.10);
+  }
+  .field.is-invalid input,
+  .field.is-invalid select {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px rgba(224,90,90,0.12);
+    animation: shake 0.4s;
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25%     { transform: translateX(-4px); }
+    50%     { transform: translateX(4px); }
+    75%     { transform: translateX(-2px); }
+  }
+
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+    font-size: 0.8rem;
+  }
+  select option { background: var(--surface); }
+
+  .hint {
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    margin-top: 0.35rem;
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .hint .fav {
+    width: 14px; height: 14px; border-radius: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    object-fit: contain;
+    display: inline-block;
+  }
+  .hint .fav.empty { background: var(--bg); }
+
+  /* inline errors */
+  .field-error {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--error);
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin 0.2s ease;
+  }
+  .field.is-invalid .field-error {
+    max-height: 40px;
+    opacity: 1;
+    margin-top: 0.35rem;
+  }
+
+  /* ─────────── DIVIDERS / SECTIONS ─────────── */
+  .section-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 1.4rem 0 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* ─────────── MODEL SELECTOR ─────────── */
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.7rem;
+    margin-top: 0.3rem;
+  }
+
+  .model-chip { position: relative; cursor: pointer; display: block; }
+  .model-chip input[type="checkbox"] {
+    position: absolute; opacity: 0; inset: 0;
+    width: 100%; height: 100%; cursor: pointer;
+  }
+
+  .model-chip-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1.1rem 0.8rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg-2), var(--bg));
+    transition: border-color 0.2s, background 0.2s, transform 0.12s, box-shadow 0.25s;
+    user-select: none;
+    overflow: hidden;
+  }
+  .model-chip-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: radial-gradient(120% 80% at 50% 0%, var(--chip-glow, rgba(61,127,255,0.18)), transparent 65%);
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+  }
+  .model-chip:hover .model-chip-inner {
+    border-color: var(--border-hi);
+    transform: translateY(-1px);
+  }
+  .model-chip:hover .model-chip-inner::before { opacity: 0.6; }
+
+  .model-chip input:checked + .model-chip-inner {
+    border-color: var(--chip-accent, var(--accent));
+    background: linear-gradient(180deg, rgba(61,127,255,0.07), rgba(61,127,255,0.02));
+    box-shadow: 0 0 0 1px var(--chip-accent, var(--accent)) inset, 0 8px 30px -10px var(--chip-glow, var(--accent-glow));
+  }
+  .model-chip input:checked + .model-chip-inner::before { opacity: 1; }
+  .model-chip:active .model-chip-inner { transform: scale(0.98); }
+
+  .chip-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--chip-bg, rgba(61,127,255,0.12));
+    border: 1px solid transparent;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.25s;
+  }
+  .chip-icon svg { width: 22px; height: 22px; display: block; }
+  .chip-icon img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: block;
+  }
+  .model-chip input:checked + .model-chip-inner .chip-icon {
+    transform: scale(1.08);
+    border-color: var(--chip-accent, var(--accent));
+    box-shadow: 0 0 18px -4px var(--chip-glow, var(--accent-glow));
+  }
+
+  .chip-name {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+  .model-chip input:checked + .model-chip-inner .chip-name { color: var(--text-hi); }
+
+  .chip-desc {
+    font-family: var(--sans);
+    font-size: 0.66rem;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+    opacity: 0.85;
+  }
+
+  .chip-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--border-hi);
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  }
+  .chip-check svg {
+    width: 10px; height: 10px;
+    stroke: #fff; stroke-width: 3;
+    stroke-linecap: round; stroke-linejoin: round;
+    fill: none;
+    stroke-dasharray: 16;
+    stroke-dashoffset: 16;
+    transition: stroke-dashoffset 0.3s ease 0.05s;
+  }
+  .model-chip input:checked + .model-chip-inner .chip-check {
+    background: var(--chip-accent, var(--accent));
+    border-color: var(--chip-accent, var(--accent));
+    transform: scale(1.05);
+  }
+  .model-chip input:checked + .model-chip-inner .chip-check svg {
+    stroke-dashoffset: 0;
+  }
+
+  /* model-specific accents */
+  .model-chip.m-chatgpt { --chip-accent: #10a37f; --chip-glow: rgba(16,163,127,0.40); --chip-bg: rgba(16,163,127,0.10); }
+  .model-chip.m-claude  { --chip-accent: #d97757; --chip-glow: rgba(217,119,87,0.40); --chip-bg: rgba(217,119,87,0.10); }
+
+  .field-error-models {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--error);
+    transition: max-height 0.25s, opacity 0.2s, margin 0.2s;
+  }
+  .field.is-invalid .field-error-models {
+    max-height: 40px;
+    opacity: 1;
+    margin-top: 0.5rem;
+  }
+
+  /* ─────────── PREVIEW PANEL ─────────── */
+  .preview {
+    margin-top: 1.4rem;
+    border: 1px dashed var(--border-hi);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    background: rgba(61, 127, 255, 0.03);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text);
+    position: relative;
+    overflow: hidden;
+  }
+  .preview-title {
+    font-size: 0.7rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .preview-title::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 1rem;
+  }
+  .pv-row { display: flex; justify-content: space-between; gap: 0.5rem; }
+  .pv-row .k { color: var(--text-dim); }
+  .pv-row .v {
+    color: var(--text-hi);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+  }
+  .pv-row .v.muted { color: var(--text-dim); font-style: italic; }
+  .pv-row .v.warn  { color: var(--warn); }
+
+  /* ─────────── SUBMIT ─────────── */
+  .submit-row { margin-top: 1.3rem; }
+
+  button[type="submit"] {
+    position: relative;
+    width: 100%;
+    padding: 0.85rem;
+    background: linear-gradient(180deg, var(--accent), #2c66cc);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.25s ease, opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.15) inset,
+      0 0 0 1px rgba(61,127,255,0.4),
+      0 10px 28px -10px var(--accent-glow);
+    overflow: hidden;
+  }
+  button[type="submit"]::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transition: left 0.6s ease;
+  }
+  button[type="submit"]:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.2) inset,
+      0 0 0 1px rgba(106,161,255,0.55),
+      0 16px 36px -10px var(--accent-glow);
+  }
+  button[type="submit"]:hover:not(:disabled)::after { left: 100%; }
+  button[type="submit"]:active:not(:disabled) { transform: translateY(0) scale(0.995); }
+  button[type="submit"]:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .spinner {
+    display: none;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─────────── FEEDBACK ─────────── */
+  .feedback {
+    display: none;
+    margin-top: 0.9rem;
+    padding: 0.75rem 0.95rem;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+  .feedback.success {
+    display: block;
+    background: var(--success-lo);
+    border: 1px solid rgba(31, 186, 116, 0.3);
+    color: var(--success);
+  }
+  .feedback.error {
+    display: block;
+    background: var(--error-lo);
+    border: 1px solid rgba(224, 90, 90, 0.3);
+    color: var(--error);
+  }
+
+  /* ─────────── FOOTER ─────────── */
+  .card-footer {
+    padding: 0.9rem 1.8rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.2);
+  }
+  .card-footer span.foot-text {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .badge {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--accent-lo);
+    color: var(--accent-2);
+    border: 1px solid rgba(61, 127, 255, 0.3);
+    letter-spacing: 0.06em;
+  }
+
+  /* ─────────── LOADING OVERLAY ─────────── */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(7, 9, 15, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .loading-overlay.show { display: flex; opacity: 1; }
+  .loading-overlay.done .loading-inner { display: none; }
+  .loading-overlay.done .done-state { display: flex; }
+
+  .loading-inner {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .loading-title {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 0.5rem;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+  .loading-title::before, .loading-title::after {
+    content: '';
+    height: 1px; flex: 1;
+    background: linear-gradient(90deg, transparent, var(--border-hi), transparent);
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    transition: all 0.3s;
+  }
+  .step .step-mark {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--border-hi);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+    transition: all 0.3s;
+  }
+  .step .step-mark::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.3s;
+  }
+  .step.active {
+    color: var(--text-hi);
+    border-color: var(--accent);
+    background: rgba(61,127,255,0.08);
+    box-shadow: 0 0 18px -6px var(--accent-glow);
+  }
+  .step.active .step-mark {
+    border-color: var(--accent);
+  }
+  .step.active .step-mark::before {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .step.done {
+    color: var(--text);
+    border-color: rgba(31,186,116,0.4);
+    background: rgba(31,186,116,0.04);
+  }
+  .step.done .step-mark {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .step.done .step-mark::before {
+    width: 9px; height: 5px;
+    background: transparent;
+    border: 2px solid #fff;
+    border-top: 0; border-right: 0;
+    border-radius: 0;
+    transform: rotate(-45deg) translate(1px, -1px);
+    box-shadow: none;
+    animation: none;
+  }
+
+  .done-state {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    text-align: center;
+  }
+  .check-circle {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(31,186,116,0.12);
+    border: 1px solid rgba(31,186,116,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 40px -8px rgba(31,186,116,0.5);
+    animation: pop 0.45s cubic-bezier(0.22, 1.4, 0.4, 1);
+  }
+  .check-circle svg {
+    width: 30px; height: 30px;
+    stroke: var(--success); stroke-width: 3;
+    stroke-linecap: round; stroke-linejoin: round;
+    fill: none;
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: drawCheck 0.5s ease-out 0.2s forwards;
+  }
+  @keyframes pop {
+    0%   { transform: scale(0.4); opacity: 0; }
+    60%  { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+  .done-state .done-title {
+    font-family: var(--mono);
+    color: var(--text-hi);
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+  }
+  .done-state .done-sub {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.76rem;
+  }
+
+  /* ─────────── RESPONSIVE ─────────── */
+  @media (max-width: 600px) {
+    .wrap { padding: 1rem 0.6rem; }
+    .card-header { padding: 1.1rem 1.2rem 1rem; }
+    .status-bar  { padding: 0.55rem 1.2rem; flex-wrap: wrap; }
+    .card-body   { padding: 1.2rem 1.2rem 1.4rem; }
+    .card-footer { padding: 0.8rem 1.2rem; }
+    .header-text h1 { font-size: 0.95rem; }
+    .preview-grid { grid-template-columns: 1fr; }
+    .model-grid { gap: 0.45rem; }
+    .chip-desc { display: none; }
+    .quick-actions { width: 100%; justify-content: flex-end; }
+  }
+
+  @media (max-width: 420px) {
+    .model-grid { grid-template-columns: 1fr; }
+    .chip-desc { display: block; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="auditCard">
+
+    <!-- LIVE PROGRESS BAR -->
+    <div class="progress-track">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- HEADER -->
+    <div class="card-header">
+      <div class="header-left">
+        <div class="logo-mark" aria-label="AEO Visibility Audit logo">
+          <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="logoStroke" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#a8c4ff"/>
+                <stop offset="0.55" stop-color="#6aa1ff"/>
+                <stop offset="1" stop-color="#3d7fff"/>
+              </linearGradient>
+              <linearGradient id="logoFill" x1="0" y1="0" x2="0" y2="28" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#6aa1ff" stop-opacity="0.18"/>
+                <stop offset="1" stop-color="#3d7fff" stop-opacity="0.04"/>
+              </linearGradient>
+            </defs>
+
+            <!-- hex frame -->
+            <path d="M14 2.2 L23.5 7.6 L23.5 20.4 L14 25.8 L4.5 20.4 L4.5 7.6 Z"
+                  fill="url(#logoFill)"
+                  stroke="url(#logoStroke)"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"/>
+
+            <!-- stylized A -->
+            <path d="M8.6 20 L14 8 L19.4 20"
+                  stroke="url(#logoStroke)"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"/>
+            <path d="M10.8 15.7 L17.2 15.7"
+                  stroke="url(#logoStroke)"
+                  stroke-width="1.6"
+                  stroke-linecap="round"/>
+
+            <!-- scan dot -->
+            <circle cx="21.4" cy="6.5" r="1.55" fill="#a8c4ff"/>
+            <circle cx="21.4" cy="6.5" r="3" stroke="#6aa1ff" stroke-opacity="0.5" stroke-width="0.8"/>
+          </svg>
+        </div>
+        <div class="header-text">
+          <h1>
+            <span>AEO Visibility Audit</span>
+            <span class="brand-tag" title="Vasilis Godovos">VG</span>
+          </h1>
+          <p>Έλεγχος παρουσίας επιχείρησης σε LLMs</p>
+        </div>
+      </div>
+      <div class="progress-pct" id="progressPct"><b>0%</b> complete</div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+      <div class="left">
+        <span class="dot"></span>
+        <span>system ready — workflow connected</span>
+      </div>
+      <div class="quick-actions">
+        <button type="button" class="qa-btn" id="btnExample">Try Example</button>
+        <button type="button" class="qa-btn danger" id="btnClear">Clear</button>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="card-body">
+      <form id="auditForm" novalidate>
+
+        <div class="section-title">Επιχείρηση</div>
+
+        <!-- Business name -->
+        <div class="field" data-field="business">
+          <label for="businessName">
+            <span>Επωνυμία / Όνομα επιχείρησης <span class="req">*</span></span>
+          </label>
+          <div class="input-wrap">
+            <input type="text" id="businessName"
+              placeholder="π.χ. Ξενοδοχείο Αθηνά"
+              autocomplete="organization">
+            <span class="input-status ok" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(31,186,116,0.18)" stroke="#1fba74"/>
+                <path d="M5.5 9.2l2.4 2.4 4.6-5" stroke="#1fba74" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="input-status err" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(224,90,90,0.18)" stroke="#e05a5a"/>
+                <path d="M6 6l6 6M12 6l-6 6" stroke="#e05a5a" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </div>
+          <div class="field-error" id="err-business">Το πεδίο είναι υποχρεωτικό</div>
+        </div>
+
+        <!-- URL -->
+        <div class="field" data-field="url">
+          <label for="pageUrl">
+            <span>URL σελίδας προς έλεγχο <span class="req">*</span></span>
+          </label>
+          <div class="input-wrap">
+            <input type="url" id="pageUrl"
+              placeholder="https://www.example.gr/σελίδα-μου"
+              autocomplete="url">
+            <span class="input-status ok" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(31,186,116,0.18)" stroke="#1fba74"/>
+                <path d="M5.5 9.2l2.4 2.4 4.6-5" stroke="#1fba74" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="input-status err" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(224,90,90,0.18)" stroke="#e05a5a"/>
+                <path d="M6 6l6 6M12 6l-6 6" stroke="#e05a5a" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </div>
+          <div class="field-error" id="err-url">Παρακαλώ εισάγετε έγκυρο URL (https://...)</div>
+          <p class="hint" id="urlHint">
+            <span class="fav empty" id="urlFavicon"></span>
+            <span id="urlPreview">Πλήρης διεύθυνση συμπεριλαμβανομένου του https://</span>
+          </p>
+        </div>
+
+        <div class="section-title">Ανταγωνιστής <span class="opt" style="letter-spacing:0;text-transform:none;">— προαιρετικό</span></div>
+
+        <!-- Competitor Name -->
+        <div class="field" data-field="competitorName">
+          <label for="competitorName">
+            <span>Όνομα Ανταγωνιστή</span>
+            <span class="opt">optional</span>
+          </label>
+          <div class="input-wrap">
+            <input type="text" id="competitorName" placeholder="π.χ. Hotel Competitor">
+          </div>
+        </div>
+
+        <!-- Competitor URL -->
+        <div class="field" data-field="competitorUrl">
+          <label for="competitorUrl">
+            <span>URL Ανταγωνιστή</span>
+            <span class="opt">optional</span>
+          </label>
+          <div class="input-wrap">
+            <input type="url" id="competitorUrl" placeholder="https://www.competitor.gr">
+            <span class="input-status ok" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(31,186,116,0.18)" stroke="#1fba74"/>
+                <path d="M5.5 9.2l2.4 2.4 4.6-5" stroke="#1fba74" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="input-status err" aria-hidden="true">
+              <svg viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="8" fill="rgba(224,90,90,0.18)" stroke="#e05a5a"/>
+                <path d="M6 6l6 6M12 6l-6 6" stroke="#e05a5a" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+          </div>
+          <div class="field-error" id="err-competitorUrl">Μη έγκυρο URL</div>
+          <p class="hint" id="competitorHint">
+            <span class="fav empty" id="competitorFavicon"></span>
+            <span id="competitorPreview">Αν συμπληρώσετε, θα γίνει σύγκριση με τον ανταγωνιστή</span>
+          </p>
+        </div>
+
+        <div class="section-title">Παράμετροι ελέγχου</div>
+
+        <!-- Language -->
+        <div class="field" data-field="language">
+          <label for="language"><span>Γλώσσα περιεχομένου <span class="req">*</span></span></label>
+          <div class="select-wrap">
+            <select id="language">
+              <option value="el">🇬🇷 Ελληνικά</option>
+              <option value="en">🇬🇧 English</option>
+              <option value="both">🌐 Και τα δύο</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Models -->
+        <div class="field" data-field="models">
+          <label><span>LLM προς έλεγχο <span class="req">*</span></span>
+            <span class="opt" id="modelsCount">1 selected</span>
+          </label>
+          <div class="model-grid">
+
+            <!-- ChatGPT -->
+            <label class="model-chip m-chatgpt">
+              <input type="checkbox" name="models" value="chatgpt" checked>
+              <div class="model-chip-inner">
+                <div class="chip-check">
+                  <svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.3 2.3 4.7-5"/></svg>
+                </div>
+                <div class="chip-icon">
+                  <svg viewBox="0 0 41 41" fill="#10a37f" xmlns="http://www.w3.org/2000/svg" aria-label="ChatGPT">
+                    <path d="M37.532 16.87a9.96 9.96 0 0 0-.856-8.184 10.08 10.08 0 0 0-10.87-4.835A9.96 9.96 0 0 0 18.45.487a10.08 10.08 0 0 0-9.622 6.98 9.96 9.96 0 0 0-6.66 4.834 10.08 10.08 0 0 0 1.24 11.817 9.96 9.96 0 0 0 .857 8.185 10.08 10.08 0 0 0 10.87 4.835 9.96 9.96 0 0 0 7.36 3.364 10.08 10.08 0 0 0 9.622-6.981 9.96 9.96 0 0 0 6.66-4.834 10.08 10.08 0 0 0-1.243-11.817zM22.498 37.886a7.474 7.474 0 0 1-4.799-1.735c.061-.033.168-.091.237-.134l7.964-4.6a1.294 1.294 0 0 0 .655-1.134v-11.231l3.366 1.945a.12.12 0 0 1 .066.092v9.299a7.502 7.502 0 0 1-7.49 7.498zM6.392 31.006a7.471 7.471 0 0 1-.894-5.023c.06.036.166.101.241.145l7.964 4.6a1.297 1.297 0 0 0 1.308 0l9.724-5.614v3.888a.12.12 0 0 1-.048.103l-8.051 4.649a7.504 7.504 0 0 1-10.244-2.748zM4.297 13.62A7.469 7.469 0 0 1 8.2 10.333c0 .068-.004.19-.004.274v9.201a1.294 1.294 0 0 0 .654 1.132l9.723 5.614-3.366 1.946a.12.12 0 0 1-.114.01L7.04 23.856a7.504 7.504 0 0 1-2.743-10.237zm27.658 6.437l-9.724-5.615 3.367-1.944a.12.12 0 0 1 .113-.01l8.052 4.648a7.498 7.498 0 0 1-1.158 13.528v-9.476a1.293 1.293 0 0 0-.65-1.131zm3.35-5.043c-.059-.037-.165-.102-.241-.146l-7.965-4.6a1.297 1.297 0 0 0-1.308 0l-9.723 5.614v-3.888a.12.12 0 0 1 .048-.103l8.05-4.645a7.497 7.497 0 0 1 11.138 7.766zM15.554 22.02l-3.368-1.944a.12.12 0 0 1-.065-.092v-9.299a7.498 7.498 0 0 1 12.293-5.756 6.94 6.94 0 0 0-.236.134l-7.965 4.6a1.294 1.294 0 0 0-.654 1.132zm1.829-3.943l4.33-2.501 4.332 2.5v5l-4.331 2.5-4.331-2.5z"/>
+                  </svg>
+                </div>
+                <span class="chip-name">ChatGPT</span>
+              </div>
+            </label>
+
+            <!-- Claude -->
+            <label class="model-chip m-claude">
+              <input type="checkbox" name="models" value="claude">
+              <div class="model-chip-inner">
+                <div class="chip-check">
+                  <svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.3 2.3 4.7-5"/></svg>
+                </div>
+                <div class="chip-icon">
+                  <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-label="Claude" fill="#d97757">
+                    <g>
+                      <path d="M20 3 L21.1 18.9 L37 20 L21.1 21.1 L20 37 L18.9 21.1 L3 20 L18.9 18.9 Z"/>
+                      <path d="M20 3 L21.1 18.9 L37 20 L21.1 21.1 L20 37 L18.9 21.1 L3 20 L18.9 18.9 Z" transform="rotate(22.5 20 20)" opacity="0.78"/>
+                      <path d="M20 3 L21.1 18.9 L37 20 L21.1 21.1 L20 37 L18.9 21.1 L3 20 L18.9 18.9 Z" transform="rotate(45 20 20)" opacity="0.55"/>
+                    </g>
+                  </svg>
+                </div>
+                <span class="chip-name">Claude</span>
+              </div>
+            </label>
+
+          </div>
+          <div class="field-error-models" id="err-models">Επίλεξε τουλάχιστον ένα μοντέλο</div>
+        </div>
+
+        <!-- PREVIEW PANEL -->
+        <div class="preview" id="previewPanel">
+          <div class="preview-title">Audit preview</div>
+          <div class="preview-grid">
+            <div class="pv-row"><span class="k">Business</span><span class="v muted" id="pvBusiness">—</span></div>
+            <div class="pv-row"><span class="k">Domain</span><span class="v muted" id="pvDomain">—</span></div>
+            <div class="pv-row"><span class="k">Language</span><span class="v" id="pvLang">Ελληνικά</span></div>
+            <div class="pv-row"><span class="k">Competitor</span><span class="v muted" id="pvCompetitor">off</span></div>
+            <div class="pv-row"><span class="k">Models</span><span class="v" id="pvModels">ChatGPT</span></div>
+            <div class="pv-row"><span class="k">Est. questions</span><span class="v" id="pvQuestions">20</span></div>
+            <div class="pv-row" style="grid-column:1/-1"><span class="k">Estimated total checks</span><span class="v" id="pvTotal" style="max-width:none">20</span></div>
+          </div>
+        </div>
+
+        <!-- SUBMIT -->
+        <div class="submit-row">
+          <button type="submit" id="submitBtn">
+            <span class="spinner" id="spinner"></span>
+            <span id="btnText">Εκκίνηση ελέγχου →</span>
+          </button>
+        </div>
+
+        <!-- Feedback -->
+        <div class="feedback" id="feedbackBox"></div>
+
+      </form>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="card-footer">
+      <span class="foot-text">Powered by Vasilis Godovos</span>
+      <span class="badge">v1.1</span>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-inner">
+        <div class="loading-title">running audit</div>
+        <div class="step" data-step="0">
+          <div class="step-mark"></div>
+          <span>Crawling website</span>
+        </div>
+        <div class="step" data-step="1">
+          <div class="step-mark"></div>
+          <span>Extracting entities</span>
+        </div>
+        <div class="step" data-step="2">
+          <div class="step-mark"></div>
+          <span>Generating prompts</span>
+        </div>
+        <div class="step" data-step="3">
+          <div class="step-mark"></div>
+          <span>Querying AI models</span>
+        </div>
+        <div class="step" data-step="4">
+          <div class="step-mark"></div>
+          <span>Preparing dashboard</span>
+        </div>
+      </div>
+      <div class="done-state">
+        <div class="check-circle">
+          <svg viewBox="0 0 30 30"><path d="M6 15.5l6 6 12-13"/></svg>
+        </div>
+        <div class="done-title">Audit started</div>
+        <div class="done-sub">Μεταφορά στο dashboard…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="draft-toast" id="draftToast" role="status" aria-live="polite">Draft restored</div>
+
+<script>
+/* ────────────────────────────────────────────────────────── */
+/* CONFIG                                                     */
+/* ────────────────────────────────────────────────────────── */
+const WEBHOOK     = 'https://n8n-service-t3n0.onrender.com/webhook/aeo-audit';
+const STORAGE_KEY = 'aeo.recentAudits';
+const DRAFT_KEY   = 'aeo.draft';
+
+/* DOM refs */
+const $ = (id) => document.getElementById(id);
+const form         = $('auditForm');
+const submitBtn    = $('submitBtn');
+const spinner      = $('spinner');
+const btnText      = $('btnText');
+const feedback     = $('feedbackBox');
+const progressBar  = $('progressBar');
+const progressPct  = $('progressPct');
+const loadingOL    = $('loadingOverlay');
+
+const businessInput = $('businessName');
+const urlInput      = $('pageUrl');
+const compNameInput = $('competitorName');
+const compUrlInput  = $('competitorUrl');
+const langSelect    = $('language');
+const modelInputs   = () => document.querySelectorAll('input[name="models"]');
+
+/* ────────────────────────────────────────────────────────── */
+/* HELPERS                                                    */
+/* ────────────────────────────────────────────────────────── */
+function setLoading(on) {
+  submitBtn.disabled = on;
+  spinner.style.display = on ? 'block' : 'none';
+  btnText.textContent = on ? 'Επεξεργασία…' : 'Εκκίνηση ελέγχου →';
+}
+
+function showFeedback(type, msg) {
+  feedback.className = 'feedback ' + type;
+  feedback.textContent = msg;
+}
+function hideFeedback() { feedback.className = 'feedback'; feedback.textContent = ''; }
+
+function validateURL(str) {
+  if (!str) return false;
+  try {
+    const u = new URL(str);
+    return (u.protocol === 'https:' || u.protocol === 'http:') && !!u.hostname && u.hostname.includes('.');
+  } catch { return false; }
+}
+
+function getHostname(str) {
+  try { return new URL(str).hostname.replace(/^www\./, ''); }
+  catch { return ''; }
+}
+
+/* if the user types "example.com/page" without protocol, auto-prefix on blur */
+function autoPrefixUrl(inputEl) {
+  const v = inputEl.value.trim();
+  if (!v) return;
+  if (/^https?:\/\//i.test(v)) return;
+  // only prefix if it looks like a domain (has a dot, no spaces)
+  if (/\s/.test(v)) return;
+  if (!/.+\..+/.test(v)) return;
+  inputEl.value = 'https://' + v;
+}
+
+function getSelectedModels() {
+  return [...modelInputs()].filter(i => i.checked).map(i => i.value);
+}
+
+function setFieldState(field, state /* 'valid' | 'invalid' | 'neutral' */) {
+  field.classList.remove('is-valid', 'is-invalid');
+  if (state === 'valid')   field.classList.add('is-valid');
+  if (state === 'invalid') field.classList.add('is-invalid');
+}
+
+function fieldOf(name) {
+  return document.querySelector(`.field[data-field="${name}"]`);
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* VALIDATION (per-field, live)                               */
+/* ────────────────────────────────────────────────────────── */
+function validateBusiness(silent = false) {
+  const v = businessInput.value.trim();
+  const f = fieldOf('business');
+  if (!v) { if (!silent) setFieldState(f, 'invalid'); else setFieldState(f, 'neutral'); return false; }
+  setFieldState(f, 'valid');
+  return true;
+}
+
+function validateUrl(silent = false) {
+  const v = urlInput.value.trim();
+  const f = fieldOf('url');
+  if (!v) { setFieldState(f, silent ? 'neutral' : 'invalid'); return false; }
+  if (!validateURL(v)) { setFieldState(f, 'invalid'); return false; }
+  setFieldState(f, 'valid');
+  return true;
+}
+
+function validateCompetitorUrl(silent = false) {
+  const v = compUrlInput.value.trim();
+  const f = fieldOf('competitorUrl');
+  if (!v) { setFieldState(f, 'neutral'); return true; }
+  if (!validateURL(v)) { setFieldState(f, silent ? 'neutral' : 'invalid'); return false; }
+  setFieldState(f, 'valid');
+  return true;
+}
+
+function validateModels(silent = false) {
+  const f = fieldOf('models');
+  const count = getSelectedModels().length;
+  if (count === 0) { setFieldState(f, silent ? 'neutral' : 'invalid'); return false; }
+  setFieldState(f, 'valid');
+  return true;
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* FAVICON / DOMAIN PREVIEW                                   */
+/* ────────────────────────────────────────────────────────── */
+function updateDomainPreview(inputEl, faviconEl, textEl, fallback) {
+  const v = inputEl.value.trim();
+  if (!validateURL(v)) {
+    faviconEl.classList.add('empty');
+    faviconEl.style.backgroundImage = '';
+    if (faviconEl.tagName === 'IMG') faviconEl.removeAttribute('src');
+    textEl.textContent = fallback;
+    return;
+  }
+  const host = getHostname(v);
+  const fav = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=32`;
+  faviconEl.classList.remove('empty');
+  faviconEl.style.backgroundImage = `url("${fav}")`;
+  faviconEl.style.backgroundSize  = 'contain';
+  faviconEl.style.backgroundRepeat = 'no-repeat';
+  faviconEl.style.backgroundPosition = 'center';
+  textEl.textContent = host;
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* PROGRESS                                                   */
+/* ────────────────────────────────────────────────────────── */
+function computeProgress() {
+  // 4 required signals: business, url, language (always set), models (>=1)
+  let total = 4;
+  let done  = 0;
+  if (businessInput.value.trim())            done++;
+  if (validateURL(urlInput.value.trim()))    done++;
+  if (langSelect.value)                      done++;
+  if (getSelectedModels().length > 0)        done++;
+  // bonus for competitor (optional, valid URL only)
+  let bonus = 0;
+  if (compUrlInput.value.trim() && validateURL(compUrlInput.value.trim())) {
+    bonus = 0.5;
+  }
+  const pct = Math.min(100, Math.round(((done + bonus) / total) * 100));
+  return pct;
+}
+
+function updateProgress() {
+  const pct = computeProgress();
+  progressBar.style.width = pct + '%';
+  progressPct.innerHTML = '<b>' + pct + '%</b> complete';
+  progressPct.classList.toggle('high', pct >= 100);
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* PREVIEW PANEL                                              */
+/* ────────────────────────────────────────────────────────── */
+const pvBusiness   = $('pvBusiness');
+const pvDomain     = $('pvDomain');
+const pvLang       = $('pvLang');
+const pvCompetitor = $('pvCompetitor');
+const pvModels     = $('pvModels');
+const pvQuestions  = $('pvQuestions');
+const pvTotal      = $('pvTotal');
+const modelsCount  = $('modelsCount');
+
+const LANG_LABELS = { el: 'Ελληνικά', en: 'English', both: 'EL + EN' };
+const MODEL_LABELS = { chatgpt: 'ChatGPT', claude: 'Claude' };
+
+function updatePreview() {
+  const biz   = businessInput.value.trim();
+  const host  = getHostname(urlInput.value.trim());
+  const comp  = compUrlInput.value.trim();
+  const compHost = getHostname(comp);
+  const models = getSelectedModels();
+  const lang  = langSelect.value;
+
+  pvBusiness.textContent = biz || '—';
+  pvBusiness.classList.toggle('muted', !biz);
+
+  pvDomain.textContent = host || '—';
+  pvDomain.classList.toggle('muted', !host);
+
+  pvLang.textContent = LANG_LABELS[lang] || lang;
+
+  if (comp && validateURL(comp)) {
+    pvCompetitor.textContent = compHost || 'on';
+    pvCompetitor.classList.remove('muted');
+  } else if (comp) {
+    pvCompetitor.textContent = 'invalid url';
+    pvCompetitor.classList.add('muted');
+  } else {
+    pvCompetitor.textContent = 'off';
+    pvCompetitor.classList.add('muted');
+  }
+
+  if (models.length) {
+    pvModels.textContent = models.map(m => MODEL_LABELS[m] || m).join(' · ');
+    pvModels.classList.remove('muted');
+  } else {
+    pvModels.textContent = '—';
+    pvModels.classList.add('muted');
+  }
+
+  // ~20 prompts per model — doubled if competitor enabled
+  const perModel = 20;
+  const baseQ = (models.length || 0) * perModel;
+  const withCompetitor = comp && validateURL(comp);
+  const totalChecks = withCompetitor ? baseQ * 2 : baseQ;
+  pvQuestions.textContent = baseQ;
+  pvTotal.textContent = totalChecks + (withCompetitor ? '  (×2 με ανταγωνιστή)' : '');
+
+  // count next to label
+  modelsCount.textContent = models.length + ' selected';
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* LIVE WIRING                                                */
+/* ────────────────────────────────────────────────────────── */
+function refresh({ silent = true } = {}) {
+  validateBusiness(silent);
+  validateUrl(silent);
+  validateCompetitorUrl(silent);
+  validateModels(silent);
+  updateDomainPreview(urlInput,     $('urlFavicon'),        $('urlPreview'),        'Πλήρης διεύθυνση συμπεριλαμβανομένου του https://');
+  updateDomainPreview(compUrlInput, $('competitorFavicon'), $('competitorPreview'), 'Αν συμπληρώσετε, θα γίνει σύγκριση με τον ανταγωνιστή');
+  updatePreview();
+  updateProgress();
+}
+
+businessInput.addEventListener('input', () => refresh());
+urlInput     .addEventListener('input', () => refresh());
+compUrlInput .addEventListener('input', () => refresh());
+compNameInput.addEventListener('input', () => refresh());
+langSelect   .addEventListener('change', () => refresh());
+modelInputs().forEach(i => i.addEventListener('change', () => refresh()));
+
+/* on blur, switch from silent → validating (show inline error) */
+businessInput.addEventListener('blur', () => validateBusiness(false));
+urlInput     .addEventListener('blur', () => { autoPrefixUrl(urlInput); refresh({ silent: false }); validateUrl(false); });
+compUrlInput .addEventListener('blur', () => { autoPrefixUrl(compUrlInput); refresh({ silent: false }); validateCompetitorUrl(false); });
+
+/* ────────────────────────────────────────────────────────── */
+/* QUICK ACTIONS                                              */
+/* ────────────────────────────────────────────────────────── */
+function fillExample() {
+  businessInput.value = 'Ξενοδοχείο Αθηνά';
+  urlInput.value      = 'https://www.athinahotel.gr';
+  compNameInput.value = 'Hotel Olympia';
+  compUrlInput.value  = 'https://www.olympiahotel.gr';
+  langSelect.value    = 'el';
+  // demo: ChatGPT + Claude
+  modelInputs().forEach(i => i.checked = (i.value === 'chatgpt' || i.value === 'claude'));
+  refresh({ silent: false });
+  hideFeedback();
+}
+
+function clearForm() {
+  form.reset();
+  // reset() leaves first model checked because of `checked` attribute — force the canonical state
+  modelInputs().forEach(i => i.checked = (i.value === 'chatgpt'));
+  document.querySelectorAll('.field').forEach(f => f.classList.remove('is-valid', 'is-invalid'));
+  hideFeedback();
+  try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+  refresh({ silent: true });
+  businessInput.focus();
+}
+
+$('btnExample').addEventListener('click', fillExample);
+$('btnClear')  .addEventListener('click', clearForm);
+
+/* ────────────────────────────────────────────────────────── */
+/* RECENT AUDITS (localStorage)                               */
+/* ────────────────────────────────────────────────────────── */
+function saveRecentAudit(payload) {
+  try {
+    const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    list.unshift({
+      run_id:        payload.run_id,
+      business_name: payload.business_name,
+      url:           payload.url,
+      models:        payload.models,
+      submitted_at:  payload.submitted_at
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch (_) { /* ignore quota / disabled storage */ }
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* LOADING OVERLAY (animated steps)                           */
+/* ────────────────────────────────────────────────────────── */
+let stepTimers = [];
+let overlayShownAt = 0;
+
+function clearStepTimers() { stepTimers.forEach(clearTimeout); stepTimers = []; }
+
+function runLoadingSteps() {
+  const steps = document.querySelectorAll('.loading-overlay .step');
+  steps.forEach(s => s.classList.remove('active', 'done'));
+
+  // schedule step progression so the UX feels alive even before the webhook responds
+  const schedule = [300, 1100, 2000, 3000, 4200];
+  steps.forEach((step, i) => {
+    stepTimers.push(setTimeout(() => {
+      steps.forEach((s, j) => {
+        if (j < i)  { s.classList.add('done');   s.classList.remove('active'); }
+        if (j === i) { s.classList.add('active'); s.classList.remove('done');   }
+      });
+    }, schedule[i]));
+  });
+}
+
+function showLoadingOverlay() {
+  overlayShownAt = performance.now();
+  loadingOL.classList.remove('done');
+  loadingOL.classList.add('show');
+  runLoadingSteps();
+}
+
+function markLoadingDone() {
+  clearStepTimers();
+  document.querySelectorAll('.loading-overlay .step')
+    .forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
+  loadingOL.classList.add('done');
+}
+
+function hideLoadingOverlay() {
+  clearStepTimers();
+  loadingOL.classList.remove('show', 'done');
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* SUBMIT                                                     */
+/* ────────────────────────────────────────────────────────── */
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideFeedback();
+
+  // validate all (visible)
+  const ok = [
+    validateBusiness(false),
+    validateUrl(false),
+    validateCompetitorUrl(false),
+    validateModels(false)
+  ].every(Boolean);
+
+  if (!ok) {
+    // scroll to first invalid
+    const firstBad = document.querySelector('.field.is-invalid');
+    if (firstBad) firstBad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  const business      = businessInput.value.trim();
+  const url           = urlInput.value.trim();
+  const competitorUrl = compUrlInput.value.trim();
+  const competitorName= compNameInput.value.trim();
+  const language      = langSelect.value;
+  const models        = getSelectedModels();
+
+  setLoading(true);
+  showLoadingOverlay();
+
+  const run_id = new Date().toISOString();
+  const payload = {
+    run_id,
+    business_name:   business,
+    url,
+    competitor_url:  competitorUrl  || null,
+    competitor_name: competitorName || null,
+    language,
+    models,
+    submitted_at:    run_id
+  };
+
+  try {
+    const res = await fetch(WEBHOOK, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      saveRecentAudit(payload);
+      clearDraft();
+      const expectedTotal = models.length * 20;
+      const businessParam = competitorUrl ? business + ' vs Competitor' : business;
+      const actualTotal   = competitorUrl ? expectedTotal * 2 : expectedTotal;
+
+      // make sure user sees all steps complete before redirect
+      const minOverlayMs = 4800;
+      const elapsedSinceShow = performance.now() - overlayShownAt;
+      const wait = Math.max(600, minOverlayMs - elapsedSinceShow);
+
+      setTimeout(() => {
+        markLoadingDone();
+        setTimeout(() => {
+          window.location.href = 'aeo-dashboard.html'
+            + '?run_id='   + encodeURIComponent(run_id)
+            + '&business=' + encodeURIComponent(businessParam)
+            + '&total='    + actualTotal;
+        }, 900);
+      }, wait);
+    } else {
+      const txt = await res.text().catch(() => '');
+      hideLoadingOverlay();
+      setLoading(false);
+      showFeedback('error',
+        '✗ Σφάλμα από τον server (' + res.status + ').\n' +
+        (txt ? txt.slice(0, 200) : 'Έλεγξε ότι το workflow είναι ενεργό.')
+      );
+    }
+  } catch (err) {
+    hideLoadingOverlay();
+    setLoading(false);
+    showFeedback('error',
+      '✗ Αδυναμία σύνδεσης με τον server.\n\n' +
+      'Βεβαιώσου ότι:\n' +
+      '• Ο automation server τρέχει\n' +
+      '• Το Webhook URL είναι σωστό\n' +
+      '• Το workflow είναι ενεργοποιημένο\n\n' +
+      'Τεχνικό σφάλμα: ' + err.message
+    );
+  }
+});
+
+/* ────────────────────────────────────────────────────────── */
+/* DRAFT AUTO-SAVE / RESTORE                                  */
+/* ────────────────────────────────────────────────────────── */
+function readDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); }
+  catch { return null; }
+}
+function writeDraft() {
+  try {
+    const draft = {
+      business:      businessInput.value,
+      url:           urlInput.value,
+      competitorName: compNameInput.value,
+      competitorUrl: compUrlInput.value,
+      language:      langSelect.value,
+      models:        getSelectedModels()
+    };
+    // skip storing if effectively empty (just default chatgpt selected)
+    const nonDefault =
+      draft.business || draft.url || draft.competitorName ||
+      draft.competitorUrl || draft.language !== 'el' ||
+      draft.models.length !== 1 || draft.models[0] !== 'chatgpt';
+    if (!nonDefault) { localStorage.removeItem(DRAFT_KEY); return; }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (_) {}
+}
+function restoreDraft() {
+  const d = readDraft();
+  if (!d) return false;
+  if (d.business)       businessInput.value  = d.business;
+  if (d.url)            urlInput.value       = d.url;
+  if (d.competitorName) compNameInput.value  = d.competitorName;
+  if (d.competitorUrl)  compUrlInput.value   = d.competitorUrl;
+  if (d.language)       langSelect.value     = d.language;
+  if (Array.isArray(d.models)) {
+    modelInputs().forEach(i => i.checked = d.models.includes(i.value));
+  }
+  return true;
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+}
+
+/* save on any meaningful change (debounced) */
+let saveDebounce = 0;
+function scheduleSave() {
+  clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(writeDraft, 350);
+}
+
+[businessInput, urlInput, compNameInput, compUrlInput, langSelect]
+  .forEach(el => el.addEventListener('input',  scheduleSave));
+langSelect.addEventListener('change', scheduleSave);
+modelInputs().forEach(i => i.addEventListener('change', scheduleSave));
+
+/* ────────────────────────────────────────────────────────── */
+/* DRAFT TOAST                                                */
+/* ────────────────────────────────────────────────────────── */
+function showDraftToast() {
+  const t = $('draftToast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* KEYBOARD SHORTCUTS                                         */
+/* ────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', (e) => {
+  // ⌘/Ctrl + Enter → submit
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    if (!submitBtn.disabled) form.requestSubmit();
+  }
+  // Esc → blur active input (small QoL)
+  if (e.key === 'Escape' && document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+});
+
+/* hint the shortcut to users via the submit button title */
+submitBtn.title = 'Ctrl/⌘ + Enter';
+
+/* ────────────────────────────────────────────────────────── */
+/* INIT                                                       */
+/* ────────────────────────────────────────────────────────── */
+const hadDraft = restoreDraft();
+refresh({ silent: true });
+
+if (hadDraft) {
+  showDraftToast();
+} else {
+  // gently focus the first field on a fresh visit (skip on mobile to avoid keyboard popup)
+  if (matchMedia('(min-width: 700px)').matches) {
+    setTimeout(() => businessInput.focus({ preventScroll: true }), 400);
+  }
+}
+</script>
+</body>
+</html>
